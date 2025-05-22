@@ -2,7 +2,7 @@
 
 SoftwareSerial espSerial(2, 3); // RX, TX
 
-char buffer[3];
+char buffer[2];
 char recent_data;
 int count = 0;
 
@@ -20,8 +20,8 @@ void loop() {
     buffer[count] = incoming;
     count++;
 
-    if (count == 3) {
-      if (buffer[0] == buffer[1] && buffer[1] == buffer[2]) {
+    if (count == 2) {
+      if (buffer[0] == buffer[1]) {
         recent_data = buffer[0];
 
         Serial.print("Received: ");
@@ -32,7 +32,7 @@ void loop() {
 
         unsigned long startTime = millis();
         while (!espSerial.available()) {
-          if (millis() - startTime > 1000) { // 1초 타임아웃
+          if (millis() - startTime > 1500) { // 1초 타임아웃
             Serial.println("ESP response timeout !");
             break;
           }

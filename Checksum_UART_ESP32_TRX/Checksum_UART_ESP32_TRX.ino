@@ -20,9 +20,9 @@ void loop() {
     if (now_data == 'f') { //Transmitt Error
       Serial.println("Transmitt Error.");
       Serial.println("Try again Trans The data.");
-        for (int i=1; i<=3; i++) {
+        for (int i=1; i<=2; i++) {
           arduSerial.write(recent_data);
-          delay(500);
+          delay(800);
         }
     }
     
@@ -46,13 +46,13 @@ void loop() {
 
     recent_data = Serial.read();
 
-    for (int i=1; i<=3; i++) {
+    for (int i=1; i<=2; i++) {
     arduSerial.write(recent_data);
-    delay(500);
+    delay(1000);
     }
 
   Serial.println("Data Sended : ");
-  Serial.println(recent_data);
+  Serial.print(recent_data);
   }
 
 }

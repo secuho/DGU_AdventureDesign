@@ -4,16 +4,21 @@
 
 #define TXD1 19
 #define RXD1 21
+#define code_digits 12//11글자의 문자열에 날씨 정보를 포함해서 전달할 것임, 필요에 따라 글자수는 늘리거나 줄일 수 있음
 
 HardwareSerial arduSerial(1);
 
-char data[6];
+char data[code_digits];
 
 const char* ssid = "yourssid";
 const char* password = "yourpasswd";
 
 float rain_sum = 0;
+float temp_sum = 0;
+bool temp_sign = 0;//기온의 부호, 0이면 +, 1이면 -
 int rain_code = -1;
+int weather_id = 800;//3자릿수의 날씨 id, 800(맑음)이 아닌 가장 먼저 다가오는 날씨 중, 어떤 상황이 있는지 알려줌
+bool has_checked_first_not_800_code = 0;
 
 const char* weatherUrl = "https://pro.openweathermap.org/data/2.5/forecast/hourly?q=Seoul,KR&appid=a8d291fce961ee20987d3d6f961bec58&units=metric";
 
@@ -66,11 +71,18 @@ void loop() {
         int humidity = forecast["main"]["humidity"];
         const char* weatherMain = forecast["weather"][0]["main"];
         const char* description = forecast["weather"][0]["description"];
+        int id = forecast["weather"][0]["id"];
         float rain = forecast["rain"]["1h"] | 0.0;
 
         if(i>=8 && i<=31)
         {
           rain_sum+=rain;
+          temp_sum+=temp;
+          if(id!=800 && has_checked_first_not_800_code == 0)
+          {
+            weather_id = id;
+            has_checked_first_not_800_code = 1;
+          }
         }
         // 출력
         Serial.println("=== 날씨 예보 ===");
@@ -80,6 +92,7 @@ void loop() {
         Serial.print("날씨: "); Serial.println(weatherMain);
         Serial.print("설명: "); Serial.println(description);
         Serial.print("1시간 강수량: "); Serial.print(rain); Serial.println(" mm");
+        Serial.print("날씨 코드: "); Serial.println(id);
         Serial.println("=================\n");
         }
         Serial.println("============================================\n");
@@ -114,16 +127,26 @@ void loop() {
         }
         Serial.println("============================================\n");
       }
-      data[0] = 'H';
-      data[1] = 'e';
-      data[2] = 'l';
-      data[3] = 'l';
-      data[4] = 'o';
-      data[5] = 0;
+      if(temp_sum<0)
+      temp_sign = 1;
+
+      data[0] = '@';//시작 문자
+      data[1] = '0' + rain_code;//비가 얼마나 강하게 오는지 코드 
+      data[2] = '0' + (int)(rain_sum / 24) / 10;//일평균 강수량의 십의 자리 
+      data[3] = '0' + (int)(rain_sum / 24) % 10;//일평균 강수량의 일의 자리
+      data[4] = '0' + temp_sign;//일평균 기온의 부호
+      data[5] = '0' + (int)(temp_sum / 24) / 10;//일평균 기온의 십의 자리
+      data[6] = '0' + (int)(temp_sum / 24) % 10;//일평균 기온의 일의 자리
+      data[7] = '0' + weather_id / 100;//날씨 코드 백의 자리
+      data[8] = '0' + (weather_id % 100) / 10;//날씨 코드 십의 자리
+      data[9] = '0' + weather_id % 10;//날씨 코드 일의 자리
+      data[10] = '#';//weather_code상의 종료문자
+      data[11] = 0;//C++ 문법상의 종료 문자
       arduSerial.write(data);//ESP->아두이노 data 전송
       Serial.print("Data Sended : ");
       Serial.println(data);
 
+      
     } else {
       Serial.print("HTTP 요청 실패, 코드: ");
       Serial.println(httpCode);
@@ -133,6 +156,10 @@ void loop() {
   } else {
     Serial.println("Wi-Fi 연결이 끊겼습니다.");
   }
+  rain_sum = 0;
+  temp_sum = 0;
+  temp_sign = 0;
+  has_checked_first_not_800_code = 0;
   // 60초 대기
   for(int i=20;i>=0;i--)
   {

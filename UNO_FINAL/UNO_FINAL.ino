@@ -127,7 +127,6 @@ void loop() {
   _pir_sensing();
   _detect();
   _micro();
-  _pir_sensing();
 }
 //우산을 줄지, 그냥 날씨만 알려줄지, 사람은 언제오는지, 귀가하는 상황인지, 외출하는 상황인지 총체적으로 구분하는 함수
 void _umbrella_control()

@@ -7,25 +7,24 @@
 #define code_digits 12//11글자의 문자열에 날씨 정보를 포함해서 전달할 것임, 필요에 따라 글자수는 늘리거나 줄일 수 있음
 
 //디지털 핀 할당 현황
-//2, 3: ESP->UNO 수신용
+//2, 3: 집게
 //5: 레이저
-//6, 7:PIR 센서
-//8, 9: 집게
-//10, 11: 스피커
-//12, 13: 스텝 모터
+//6, 7:스피커
+//8, 9: ESP->UNO 수신용
+//10, 11: 스텝 모터
+//12, 13: PIR 센서
 //아날로그 핀 할당 현황
 //4, 5: 디스플레이
 /////////////////////////////////
-SoftwareSerial espSerial(2, 3); // RX, TX->UNO통신용
+const int right_grab = 2;
+const int left_grab = 3;
 const int raser = 5;
-const int pirPin1 = 6;
-const int pirPin2 = 7;
-const int trig = 8;
-const int echo = 9;
-SoftwareSerial mySoftwareSerial(10, 11); // RX, TX->오디오 재생용
-const int dirPin = 12 ;
-const int stepPin = 13 ;
-
+SoftwareSerial mySoftwareSerial(6, 7); // RX, TX->오디오 재생용
+SoftwareSerial espSerial(8, 9); // RX, TX->UNO통신용
+const int dirPin = 10;
+const int stepPin = 11;
+const int pirPin1 = 12;
+//const int pirPin2 = 13;
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 
@@ -44,7 +43,7 @@ bool is_umbrella_hooked = 0;
 int rain_sum = -999;
 int temperature = -999;
 int weather_id = -999;
-int angle ;
+int angle;
 int data;
 int hold;
 long duration, distance;
@@ -106,6 +105,8 @@ void setup() {
   pinMode(pirPin1, INPUT);
   pinMode(pirPin2, INPUT);
   ///////////////////////////////////////////////////
+  _esp_dummy_for_test();
+  _arm_pull();
 }
 
 //날씨 코드 설명
@@ -128,6 +129,11 @@ void loop() {
   _detect();
   _micro();
 }
+
+void _esp_dummy_for_test(){
+  is_today_rainy = 1;
+  weather_id = 500;
+}
 //우산을 줄지, 그냥 날씨만 알려줄지, 사람은 언제오는지, 귀가하는 상황인지, 외출하는 상황인지 총체적으로 구분하는 함수
 void _umbrella_control()
 {
@@ -140,6 +146,8 @@ void _umbrella_control()
     _playing_weather_audio_and_lcd_print();
     _arm_push();
     _open();
+    delay(3000);
+    _arm_pull();
   }
   else if(is_user_in_the_front_door == 1 && is_today_rainy == 0 && is_umbrella_hooked == 1 && mode == 2)
   {
@@ -154,6 +162,8 @@ void _umbrella_control()
     //귀가한 상황, 우산이 비어있어서 꽂아야하는 상황
     //로봇팔 내밀어 우산 보관할 준비하기
     _arm_push();
+    delay(3000);
+    _arm_pull();
   }
 }
 void _pir_sensing()
@@ -163,14 +173,14 @@ void _pir_sensing()
   if (digitalRead(pirPin1) == HIGH && !pir1State) {
     pir1State = true;
     pir1TriggerTime = currentTime;
-    //Serial.println("센서 1 감지됨");
+    Serial.println("센서 1 감지됨");
     if(mode == 0){
       mode = 1;
     }
     if(mode == 3){
       mode = 4;
       is_user_in_the_front_door = 1;
-      //Serial.println("귀가");
+      Serial.println("귀가");
     }
   }
 
@@ -178,7 +188,7 @@ void _pir_sensing()
   if (pir1State && (currentTime - pir1TriggerTime >= activeDuration)) {
     pir1State = false;
     is_user_in_the_front_door = 0;
-    //Serial.println("센서 1 상태 초기화됨");
+    Serial.println("센서 1 상태 초기화됨");
     mode = 0;
   }
 
@@ -186,14 +196,14 @@ void _pir_sensing()
   if (digitalRead(pirPin2) == HIGH && !pir2State) {
     pir2State = true;
     pir2TriggerTime = currentTime;
-    //Serial.println("센서 2 감지됨");
+    Serial.println("센서 2 감지됨");
     if(mode == 0){
       mode = 3;
     }
     if(mode == 1){
       mode = 2;
       is_user_in_the_front_door = 1;
-      //Serial.println("외출");
+      Serial.println("외출");
     }
   }
 
@@ -201,7 +211,7 @@ void _pir_sensing()
   if (pir2State && (currentTime - pir2TriggerTime >= activeDuration)) {
     pir2State = false;
     is_user_in_the_front_door = 0;
-    //Serial.println("센서 2 상태 초기화됨");
+    Serial.println("센서 2 상태 초기화됨");
     mode = 0;
   }
 
@@ -348,6 +358,10 @@ void _esp_communication()
       //Serial.print("weather_id: ");Serial.println(weather_id);
       //_playing_weather_audio_and_lcd_print();
     }
+
+    //ESP에서 가져온 정보를 무시하고 임시로 
+    //테스트용 데이터 삽입
+    _esp_dummy_for_test();
   }
 }
 void _playing_weather_audio_and_lcd_print()

@@ -1,5 +1,7 @@
 #include <Servo.h>
 
+const int right_grab = 2;
+const int left_grab = 3;
 Servo servo_1;
 Servo servo_2;
 
@@ -8,8 +10,8 @@ int angle ;
 int data;
 int hold;
 
-int trig = 8;
-int echo = 9;
+//int trig = 8;
+//int echo = 9;
 
 long duration, distance;
 
@@ -20,8 +22,8 @@ void setup() {
   pinMode(raser, OUTPUT);
   digitalWrite(raser, HIGH);
 
-  pinMode(trig, OUTPUT);
-  pinMode(echo, INPUT);
+  //pinMode(trig, OUTPUT);
+  //pinMode(echo, INPUT);
 
   open();
 
@@ -35,41 +37,41 @@ void setup() {
 void loop() {
 
   detect();
-  micro();
- // check();
-  delay (100);
+  //micro();
+  check();
+  //delay (100);
 
 }
 
 void open() {
 
-  servo_1.attach(2);
-  servo_2.attach(3);
+  servo_1.attach(right_grab);
+  servo_2.attach(left_grab);
   delay(100);
 
-  angle = 140;
-  servo_1.write(angle);
-  servo_2.write(180-angle);
+  //angle = 140;
+  servo_1.write(50);
+  servo_2.write(47);
 
   delay(300);
 
   servo_1.detach();
   servo_2.detach();
-  
+  Serial.println("OPEN");
 }
 
 void close() {
 
-  servo_1.attach(2);
-  servo_2.attach(3);
+  servo_1.attach(right_grab);
+  servo_2.attach(left_grab);
   delay(100);
 
-  angle = 90;
-  servo_1.write(angle);
-  servo_2.write(180-angle);
+  //angle = 90;
+  servo_1.write(10);
+  servo_2.write(90);
 
   delay(300);
-
+  Serial.println("CLOSE");
 }
 
 void detect() {
@@ -86,25 +88,11 @@ void detect() {
     hold = 1;
   }
   else {
-    if (data <= 100) {
+    if (data <= 120) {
       open();
       Serial.println("Error!");
     }
   }
-
-}
-
-void micro() {
-
-  digitalWrite(trig, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trig, LOW);
-  duration = pulseIn(echo, HIGH);
-  distance = ((float)(340*duration) / 1000) / 2 ;
-
-  Serial.print("Distance : ");
-  Serial.println(distance);
-  Serial.println();
 
 }
 

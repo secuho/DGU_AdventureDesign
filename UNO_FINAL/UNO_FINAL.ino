@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <DFRobotDFPlayerMini.h>
 #include <Servo.h>
-#define code_digits 12//11글자의 문자열에 날씨 정보를 포함해서 전달할 것임, 필요에 따라 글자수는 늘리거나 줄일 수 있음
+#define code_digits 12//11글자의 문자열에 날씨 정보를 포함해서 전달할 것임, 필요에 따라 글자수는 늘리거나 줄일 수2 있음
 
 //디지털 핀 할당 현황
 //2, 3: 집게
@@ -18,13 +18,13 @@
 /////////////////////////////////
 const int right_grab = 2;
 const int left_grab = 3;
-const int raser = 5;
+const int raser = 4;
 SoftwareSerial mySoftwareSerial(6, 7); // RX, TX->오디오 재생용
 SoftwareSerial espSerial(8, 9); // RX, TX->UNO통신용
 const int dirPin = 10;
 const int stepPin = 11;
 const int pirPin1 = 12;
-//const int pirPin2 = 13;
+const int pirPin2 = 13;
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 
@@ -90,8 +90,8 @@ void setup() {
   //로봇 집게 잡기 준비
   pinMode(raser, OUTPUT);
   digitalWrite(raser, HIGH);
-  pinMode(trig, OUTPUT);
-  pinMode(echo, INPUT);
+  //pinMode(trig, OUTPUT);
+  //pinMode(echo, INPUT);
   _open();
   delay(2000);
   Serial.println("Robot Arm Grab System Initializing Success.");
@@ -106,7 +106,7 @@ void setup() {
   pinMode(pirPin2, INPUT);
   ///////////////////////////////////////////////////
   _esp_dummy_for_test();
-  _arm_pull();
+  _arm_push();
 }
 
 //날씨 코드 설명
@@ -127,7 +127,6 @@ void loop() {
   _umbrella_control();
   _pir_sensing();
   _detect();
-  _micro();
 }
 
 void _esp_dummy_for_test(){
@@ -149,21 +148,22 @@ void _umbrella_control()
     delay(3000);
     _arm_pull();
   }
-  else if(is_user_in_the_front_door == 1 && is_today_rainy == 0 && is_umbrella_hooked == 1 && mode == 2)
+  else if(is_user_in_the_front_door == 1 && is_today_rainy == 0 && mode == 2)
   {
     Serial.println("-----");Serial.println("2번 조건 진입");Serial.println("-----");
     //외출하는 상황, 비는 안오는 상황
     //날씨 알려주기
     _playing_weather_audio_and_lcd_print();
   }
-  else if(is_user_in_the_front_door == 1 && is_umbrella_hooked == 0 && mode == 4)
+  else if(is_user_in_the_front_door == 1 && mode == 4)
   {
     Serial.println("-----");Serial.println("3번 조건 진입");Serial.println("-----");
-    //귀가한 상황, 우산이 비어있어서 꽂아야하는 상황
+    //귀가한 상황, 우산이 비어있으면 팔을 내밀고 아니면 가만히 있기
     //로봇팔 내밀어 우산 보관할 준비하기
+    if(is_umbrella_hooked == 0)
+    {
     _arm_push();
-    delay(3000);
-    _arm_pull();
+    }
   }
 }
 void _pir_sensing()
@@ -220,33 +220,33 @@ void _pir_sensing()
 //로봇 팔 펴기
 void _arm_push(){
   digitalWrite ( dirPin, LOW ) ;
-  for ( int x = 0 ; x < 200*4 ; x ++ ) {
+  for ( int x = 0 ; x < 500 ; x ++ ) {
   digitalWrite ( stepPin, HIGH ) ;
   delayMicroseconds ( 500 ) ;
   digitalWrite ( stepPin, LOW ) ;
   delayMicroseconds ( 500 ) ;
-}
+  }
 }
 //로봇 팔 접기
 void _arm_pull(){
   digitalWrite ( dirPin, HIGH ) ;
-  for ( int x = 0 ; x < 200*4 ; x ++ ) {
+  for ( int x = 0 ; x < 500 ; x ++ ) {
   digitalWrite ( stepPin, HIGH ) ;
   delayMicroseconds ( 500 ) ;
   digitalWrite ( stepPin, LOW ) ;
   delayMicroseconds ( 500 ) ;
-}
+  }
 }
 //집게 열기
 void _open() {
 
-  servo_1.attach(2);
-  servo_2.attach(3);
+  servo_1.attach(right_grab);
+  servo_2.attach(left_grab);
   delay(100);
 
-  angle = 140;
-  servo_1.write(angle);
-  servo_2.write(180-angle);
+  
+  servo_1.write(50);
+  servo_2.write(47);
 
   delay(300);
 
@@ -257,16 +257,20 @@ void _open() {
 //집게 닫기
 void _close() {
 
-  servo_1.attach(2);
-  servo_2.attach(3);
+  servo_1.attach(right_grab);
+  servo_2.attach(left_grab);
   delay(100);
 
-  angle = 90;
-  servo_1.write(angle);
-  servo_2.write(180-angle);
+  servo_1.write(9);
+  servo_2.write(89);
 
   delay(300);
-  is_umbrella_hooked = 1;
+  if(is_umbrella_hooked == 0)
+  {
+    is_umbrella_hooked = 1;
+    _arm_pull();
+  }
+  
 }
 //집게 감지 하기
 void _detect() {
@@ -279,36 +283,18 @@ void _detect() {
 
   if (data >= 150) {
     delay (100);
+    //Serial.println("CLOSE");
     _close();
     hold = 1;
   }
   else {
-    if (data <= 100) {
+    if (data <= 120) {
       _open();
+      //Serial.println("OPEN");
       //Serial.println("Error!");
     }
   }
 
-}
-void _micro() {
-
-  digitalWrite(trig, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trig, LOW);
-  duration = pulseIn(echo, HIGH);
-  distance = ((float)(340*duration) / 1000) / 2 ;
-
-  //Serial.print("Distance : ");
-  //Serial.println(distance);
-  //Serial.println();
-
-}
-void _check() {
-  if (hold == 1) {
-    if (distance >= 150) {
-      _open ();
-    }
-  }
 }
 void _esp_communication()
 {

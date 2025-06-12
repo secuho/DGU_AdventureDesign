@@ -1,3 +1,4 @@
+
 #include <SoftwareSerial.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -116,7 +117,7 @@ void setup() {
   }
   Serial.println(F("DFPlayer Mini online."));
 
-  myDFPlayer.volume(25);  //Set volume value. From 0 to 30
+  myDFPlayer.volume(30);  //Set volume value. From 0 to 30
   ///////////////////////////////////////////////////
 
   // 로봇 집게 잡기 준비
@@ -170,24 +171,29 @@ void setup() {
 void loop() {
   _esp_communication();
   _pir_sensing();
-
-  if (!(mode == 2 && !has_given_umbrella) && !(mode == 1)) {
-    _detect();
-  }
-
+  _detect();
   _umbrella_control();
 
-  static unsigned long lastPrint = 0;
 
-  if (millis() - lastPrint > 1000) {
+  static unsigned long lastPrint = 0;
+    if (millis() - lastPrint > 1000) {  // 1초마다 한번만 찍음
       Serial.print("Current MODE: ");
       Serial.println(mode);
+      Serial.print("isOut: ");
+      Serial.println(isOut);
       Serial.print("Razer Value: ");
       Serial.println(analogRead(A0));
       Serial.print("Robot Arm Status: ");
-      Serial.println(is_arm_outside ? "Out" : "In");
+      
+      if (is_arm_outside == 1) {
+        Serial.println("Out");
+      } else if (is_arm_outside == 0) {
+        Serial.println("In");
+      }
+
+      Serial.println();
       lastPrint = millis();
-  }
+    }
 }
 
 void green() {
@@ -206,16 +212,56 @@ void red() {
   }
 }
 
-
 void _esp_dummy_for_test(){
   is_today_rainy = 1;
   weather_id = 500;
 }
 //우산을 줄지, 그냥 날씨만 알려줄지, 사람은 언제오는지, 귀가하는 상황인지, 외출하는 상황인지 총체적으로 구분하는 함수
 
-// ---- 중간 생략 (setup 등 기존 동일) ----
+void _umbrella_control() {
 
-// pir_sensing() 수정본 (핵심만)
+  // 외출 완료 : 우산 전달 한번만 실행
+  if (mode == 2 && !has_given_umbrella)
+  {
+    if (is_today_rainy == 1 && is_umbrella_hooked == 1)
+    {
+      Serial.println("----- 1번 조건 진입 (우산 전달) -----");
+      _playing_weather_audio_and_lcd_print();
+      _arm_out();
+      _open();
+      delay(3000);
+      _arm_in();
+    }
+    else if (is_today_rainy == 0)
+    {
+      Serial.println("----- 2번 조건 진입 (우산 필요 없음) -----");
+      _playing_weather_audio_and_lcd_print();
+    }
+    has_given_umbrella = true;  // 1회만 실행
+  }
+
+  // 귀가 완료 : 우산 걸었을 때 자동 팔 넣기
+  else if (mode == 4)
+{
+  Serial.println("----- 3번 조건 진입 (귀가 완료) -----");
+
+  
+  if (!armHandled) {
+    if (is_umbrella_hooked == 0)
+    {
+      _arm_out();
+    }
+    else if (is_umbrella_hooked == 1)
+    {
+      _arm_in();
+    }
+    armHandled = true;
+  }
+}
+
+}
+
+
 void _pir_sensing() {
   pir1state = digitalRead(pir1);
   pir2state = digitalRead(pir2);
@@ -233,37 +279,15 @@ void _pir_sensing() {
     return;
   }
 
-  switch (mode) {
+  switch(mode) {
     case 0:
       if (pir2Triggered) {
         mode = 3;
         Serial.println("센서 2번 감지 : 귀가 대기");
-      } else if (pir1Triggered) {
+      }
+      else if (pir1Triggered) {
         mode = 1;
         Serial.println("센서 1번 감지 : 외출 대기");
-      }
-      break;
-
-    case 1:
-      if (pir2Triggered) {
-        mode = 2;
-        Serial.println("센서 2번 감지 : 외출 완료");
-        eventTime = millis();
-        has_given_umbrella = false;
-
-        // ★ 항상 기준점 보정 ★
-        _arm_in_force();
-        delay(500);
-        _arm_out_force();
-        delay(500);
-      }
-      break;
-
-    case 2:
-      if (millis() - eventTime >= resetDelay) {
-        mode = 0;
-        resetPending = true;
-        Serial.println("초기화 (외출 완료)");
       }
       break;
 
@@ -283,41 +307,29 @@ void _pir_sensing() {
         Serial.println("초기화 (귀가 완료)");
       }
       break;
+
+    case 1:
+      if (pir2Triggered) {
+        mode = 2;
+        Serial.println("센서 2번 감지 : 외출 완료");
+        eventTime = millis();
+        has_given_umbrella = false;  // 외출 완료 진입시 플래그 초기화
+      }
+      break;
+
+    case 2:
+      if (millis() - eventTime >= resetDelay) {
+        mode = 0;
+        resetPending = true;
+        Serial.println("초기화 (외출 완료)");
+      }
+      break;
   }
 
   prevPir1 = pir1state;
   prevPir2 = pir2state;
   delay(50);
 }
-
-// umbrella_control() 수정본
-void _umbrella_control() {
-  if (mode == 2 && !has_given_umbrella) {
-    if (is_today_rainy == 1 && is_umbrella_hooked == 1) {
-      Serial.println("----- 우산 전달 -----");
-      _arm_out_force();
-      _open();
-      delay(3000);
-      _arm_in_force();
-    }
-    else if (is_today_rainy == 0) {
-      Serial.println("----- 우산 필요 없음 -----");
-      _playing_weather_audio_and_lcd_print();
-    }
-    has_given_umbrella = true;
-  }
-
-  else if (mode == 4) {
-    if (!armHandled) {
-      if (is_umbrella_hooked == 0)
-        _arm_out_force();
-      else
-        _arm_in_force();
-      armHandled = true;
-    }
-  }
-}
-
 
 
 
@@ -330,7 +342,7 @@ void _arm_in(){
   }
 
   digitalWrite ( dirPin, LOW ) ;
-  for ( int x = 0 ; x < 450 ; x ++ ) {
+  for ( int x = 0 ; x < 500 ; x ++ ) {
     digitalWrite ( stepPin, HIGH ) ;
     delayMicroseconds ( 500 ) ;
     digitalWrite ( stepPin, LOW ) ;
@@ -343,7 +355,7 @@ void _arm_in(){
 
 void _arm_in_force(){
   digitalWrite ( dirPin, LOW ) ;
-  for ( int x = 0 ; x < 450 ; x ++ ) {
+  for ( int x = 0 ; x < 500 ; x ++ ) {
     digitalWrite ( stepPin, HIGH ) ;
     delayMicroseconds ( 500 ) ;
     digitalWrite ( stepPin, LOW ) ;
@@ -361,7 +373,7 @@ void _arm_out(){
   }
 
   digitalWrite ( dirPin, HIGH ) ;
-  for ( int x = 0 ; x < 450 ; x ++ ) {
+  for ( int x = 0 ; x < 500 ; x ++ ) {
     digitalWrite ( stepPin, HIGH ) ;
     delayMicroseconds ( 500 ) ;
     digitalWrite ( stepPin, LOW ) ;
@@ -375,7 +387,7 @@ void _arm_out(){
 
 void _arm_out_force(){
   digitalWrite ( dirPin, HIGH ) ;
-  for ( int x = 0 ; x < 450 ; x ++ ) {
+  for ( int x = 0 ; x < 500 ; x ++ ) {
     digitalWrite ( stepPin, HIGH ) ;
     delayMicroseconds ( 500 ) ;
     digitalWrite ( stepPin, LOW ) ;
@@ -421,24 +433,25 @@ void _detect() {
   
   delay (70);
 
-  if (data >= 150) { 
-  if (!is_umbrella_hooked) {  // 상태 변화시에만 닫기
+  if (data >= 150) {
+    delay (100);
+    //Serial.println("CLOSE");
     _close();
+    is_umbrella_hooked = 1;
+    hold = 1;
     green();
   }
-  is_umbrella_hooked = true;
-}
-else if (data <= 120) {
-  if (is_umbrella_hooked) {
-    _open();
-    red();
-  }
-  is_umbrella_hooked = false;
-}
-
+  else {
+    if (data <= 120) {
+      _open();
+      is_umbrella_hooked = 0;
+      red();
+      //Serial.println("OPEN");
+      //Serial.println("Error!");
+    }
   }
 
-
+}
 void _esp_communication()
 {
   if (espSerial.available())
